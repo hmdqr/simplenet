@@ -20,7 +20,7 @@ peer_state_map = {
 	enet.PEER_STATE_ZOMBIE: "zombie"
 }
 
-class event:
+class Event:
 	def __init__(self, obj):
 		self.type = obj.type
 		self.channel = obj.channelID
@@ -37,7 +37,7 @@ class event:
 			self.message = ""
 		self.peer = None
 
-class peer:
+class Peer:
 	def __init__(self, host, obj):
 		self.host = host
 		self.id = obj.incomingPeerID
@@ -180,7 +180,7 @@ class ConnectionHost:
 		evt = self.host.service(timeout)
 		if evt.type == EVENT_NONE:
 			return evt
-		e = event(evt)
+		e = Event(evt)
 		p = self._make_peer(evt.peer)
 		e.peer = p
 		if evt.type == EVENT_DISCONNECT:
@@ -188,7 +188,7 @@ class ConnectionHost:
 		return e
 
 	def find_peer(self, id):
-		if isinstance(id, peer):
+		if isinstance(id, Peer):
 			return id
 		if isinstance(id, int):
 			return self._peers.get(id)
@@ -198,7 +198,7 @@ class ConnectionHost:
 	def _make_peer(self, p):
 		p2 = self._peers.get(p.incomingPeerID)
 		if not p2:
-			p2 = peer(self, p)
+			p2 = Peer(self, p)
 			self._peers[p.incomingPeerID] = p2
 		else:
 			p2.update(p)
