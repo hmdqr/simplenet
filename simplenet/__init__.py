@@ -24,7 +24,7 @@ class event:
 	def __init__(self, obj):
 		self.type = obj.type
 		self.channel = obj.channelID
-		if obj.packet.is_valid():
+		if hasattr(obj, "packet") and obj.packet is not None:
 			self.data = obj.packet.data
 			self.data_length = obj.packet.dataLength
 			try:
@@ -115,17 +115,20 @@ class peer:
 class ConnectionHost:
 	def __init__(self, addr=None, port=0, peer_count=0, channels=0, incoming_bandwidth=0, outgoing_bandwidth=0):
 		# save these so we can destroy and optionally reuse
-		self._init_args = [addr, port, peer_count, channels, incoming_bandwidth, outgoing_bandwidth]
+		self._init_args = dict(addr=addr, port=port, peer_count=peer_count, channels=channels, incoming_bandwidth=incoming_bandwidth, outgoing_bandwidth=outgoing_bandwidth)
 		address = None
 		if addr and port > 0:
 			addr = addr if isinstance(addr, bytes) else addr.encode()
 			address = enet.Address(addr, port)
 		self.host = enet.Host(address, peer_count, channels, incoming_bandwidth, outgoing_bandwidth)
-		print(address, peer_count, channels, incoming_bandwidth, outgoing_bandwidth)
+		if __debug__: print(address, peer_count, channels, incoming_bandwidth, outgoing_bandwidth)
 		self._peers = {}
 
 	def __del__(self):
-		return self.destroy()
+		try:
+			self.destroy()
+		except Exception:
+			pass
 
 	def connect(self, addr, port, data=None):
 		if not isinstance(addr, bytes):
@@ -149,8 +152,13 @@ class ConnectionHost:
 		if not isinstance(data, bytes):
 			data = data.encode()
 		packet = enet.Packet(data, flags)
-		if isinstance(peers, list) or isinstance(peers, tuple):
-			return [peer.obj.send(channel, packet) for peer in self.peers]
+		if isinstance(peers, (list, tuple)):
+			results = []
+			for p in peers:
+				peer_obj = self.find_peer(p)
+				if peer_obj:
+					results.append(peer_obj.obj.send(channel, packet))
+			return results
 		elif peers is not None:
 			peer = self.find_peer(peers)
 			return peer.obj.send(channel, packet)
@@ -182,11 +190,10 @@ class ConnectionHost:
 	def find_peer(self, id):
 		if isinstance(id, peer):
 			return id
-		elif isinstance(id, int):
-			p = self._peers.get(id)
-		elif isinstance(id, enet.Peer):
-			p = self._peers.get(id["incomingPeerID"])
-		return p
+		if isinstance(id, int):
+			return self._peers.get(id)
+		if isinstance(id, enet.Peer):
+			return self._peers.get(id.incomingPeerID)
 
 	def _make_peer(self, p):
 		p2 = self._peers.get(p.incomingPeerID)
